@@ -105,7 +105,9 @@ while (count == 0):
    
 
 
-Example Code/AWS Lambda:
+
+
+#Example Code/AWS Lambda:
 #This first section is all about importing necessary libraries
 import boto3
 import json
@@ -120,9 +122,9 @@ print('Loading function')
 
 def lambda_handler(event, context):
     # Set up OpenWeatherMap API parameters
-    base_url = "http://api.openweathermap.org/data/2.5/forecast?id=524901&"
-    city_name = "New York"
-    api_key = "8e6eaf04669a17a5b994bf7ce4bfa73b"
+    base_url = "YOUR APY LINK"
+    city_name = "YOUR CITY"
+    api_key = "YOUR API KEY"
     i=1
 
     # Construct the URL with the API parameters
@@ -144,3 +146,4 @@ def lambda_handler(event, context):
             return
     client.publish(topic='WeatherCheck', qos=1, payload=json.dumps({"message":"No"}).encode('utf-8')
     )
+
