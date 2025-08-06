@@ -1,0 +1,146 @@
+Example Code/ Raspberry Pi:
+#!/usr/bin/env python
+#This first section is all about importing necessary libraries
+
+import time
+import sys
+import json
+import argparse
+import board
+import busio
+import logging
+import RPi.GPIO as GPIO
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+
+#In this case we are using an analog to digital converter (ADS1115) and is connected to Pi via #the I2C bus
+#We create an instance “ads” so that can refer to the converter when needed like in the chan #variable
+
+i2c = busio.I2C(board.SCL, board.SDA) 
+ads = ADS.ADS1115(i2c)
+chan = AnalogIn(ads, ADS.P0)
+
+count = 0
+
+#Here we initialize GPIO and setup the pin that is for output
+
+GPIO.setmode
+GPIO.setwarnings(False)
+GPIO.setup(18, GPIO.OUT)
+
+#These next few functions are defined so that they can be called when they are needed
+
+
+
+#This function handles the receiving json packet from AWS and parses it along with “if” #statements that evaluate the payload from the json data
+
+def received_message(self, params, packet):
+    print ('Received message from AWS Lambda')
+    print ('Topic: '+ packet.topic)
+    print ("Payload: ", (packet.payload))
+    x = packet.payload
+    y = json.loads(x)
+    info = (y["message"])
+    if(info == "Yes"):
+        print("Evaluated yes, it will rain")
+        pumpoff()
+    elif (info == "No"):
+        print("Evaluated no, it will not rain")
+        pumpon()
+    else:
+        print("Error, Check System")
+
+
+
+#This mapping function is an algorithm for reading the moisture sensor values to make it easier #in determining a moisture percentage
+
+def _map(x, in_min, in_max, out_min, out_max):
+	return int ((x - in_min)*(out_max - out_min) / (in_max - in_min) + out_min)
+
+def pumpon():
+	print ("Pump will turn on for a few seconds")
+	GPIO.output(18, GPIO.HIGH)
+	time.sleep(10)
+	print("Pump will turn off")
+	GPIO.output(18, GPIO.LOW)
+
+def pumpoff():
+	GPIO.output(18, GPIO.LOW)
+	print("Pump will remain off")
+
+
+#This next section handles the communication with AWS and Raspberry Pi
+       
+myMQTTClient = AWSIoTMQTTClient("Device_ID") 
+myMQTTClient.configureEndpoint("Endpoint in the security section", 8883)
+myMQTTClient.configureCredentials(“Path to root CA”, “Path to Certificate ")
+myMQTTClient.configureOfflinePublishQueueing(-1) # Infinite offline Publish queueing
+myMQTTClient.configureDrainingFrequency(2) # Draining: 2 Hz
+myMQTTClient.configureConnectDisconnectTimeout(10) # 10 sec
+myMQTTClient.configureMQTTOperationTimeout(5) # 5 sec
+print ('Initiating Realtime Data Transfer From Raspberry Pi...')
+myMQTTClient.connect()
+myMQTTClient.subscribe("WeatherCheck", 1, received_message)
+
+
+#This function is where the real functions of this code work. It reads the moisture sensor level #and will make a decision as to whether it should connect to AWS to check the weather because #the soil is dry or if the moisture level is good, it will not connect to AWS
+
+while (count == 0):
+    print("Reading Moisture Level")
+    moistureLevel = _map(chan.value, 0, 4095, 0, 100)
+    print("Analog Value: ", moistureLevel)
+    
+    
+    if (moistureLevel >= 70):
+        myMQTTClient.publish(
+            topic = "MoistureLevel", 
+            QoS = 1, 
+            payload = ("Moisture Reading: " + str(moistureLevel))
+            )
+    else:
+        print("Moisture level is good")
+    count = 1
+    time.sleep(20)
+   
+
+
+Example Code/AWS Lambda:
+#This first section is all about importing necessary libraries
+import boto3
+import json
+import requests
+import datetime
+import time
+from datetime import datetime
+client = boto3.client('iot-data', region_name='us-east-1')
+
+print('Loading function')
+#This function is for setting up the weather API using the location of your choice along with #the API key and the base URL from the site you are using
+
+def lambda_handler(event, context):
+    # Set up OpenWeatherMap API parameters
+    base_url = "http://api.openweathermap.org/data/2.5/forecast?id=524901&"
+    city_name = "New York"
+    api_key = "8e6eaf04669a17a5b994bf7ce4bfa73b"
+    i=1
+
+    # Construct the URL with the API parameters
+    complete_url = base_url + "appid=" + api_key + "&q=" + city_name
+
+    # Make a GET request to the API
+    response = requests.get(complete_url)
+    print("Connected to Weather API")
+
+#This function is what deals with parsing the data that you get from the API to get the #particular list that displays rain for the next 24 hours. Then it takes that data and will send #that data to the topic WeatherCheck.
+
+    # Extract the JSON data from the response
+    data = response.json()
+    weatherList = data["list"][0:7]
+    for item in weatherList:
+        if str(item ["weather"][0]["id"]).startswith("5"):
+            client.publish(topic='WeatherCheck', qos=1, payload=json.dumps({"message":"Yes"}).encode('utf-8')
+            )
+            return
+    client.publish(topic='WeatherCheck', qos=1, payload=json.dumps({"message":"No"}).encode('utf-8')
+    )
