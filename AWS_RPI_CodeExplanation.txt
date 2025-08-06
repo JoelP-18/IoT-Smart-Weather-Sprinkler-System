@@ -1,4 +1,4 @@
-Example Code/ Raspberry Pi:
+#Example Code/ Raspberry Pi:
 #!/usr/bin/env python
 #This first section is all about importing necessary libraries
 
@@ -53,7 +53,7 @@ def received_message(self, params, packet):
 
 
 
-#This mapping function is an algorithm for reading the moisture sensor values to make it easier #in determining a moisture percentage
+#This mapping function is an algorithm for reading the moisture sensor values to make it easier in determining a moisture percentage
 
 def _map(x, in_min, in_max, out_min, out_max):
 	return int ((x - in_min)*(out_max - out_min) / (in_max - in_min) + out_min)
@@ -70,7 +70,7 @@ def pumpoff():
 	print("Pump will remain off")
 
 
-#This next section handles the communication with AWS and Raspberry Pi
+#This next section handles the communication between AWS and Raspberry Pi
        
 myMQTTClient = AWSIoTMQTTClient("Device_ID") 
 myMQTTClient.configureEndpoint("Endpoint in the security section", 8883)
@@ -84,14 +84,14 @@ myMQTTClient.connect()
 myMQTTClient.subscribe("WeatherCheck", 1, received_message)
 
 
-#This function is where the real functions of this code work. It reads the moisture sensor level #and will make a decision as to whether it should connect to AWS to check the weather because #the soil is dry or if the moisture level is good, it will not connect to AWS
+#This function is where the real functions of this code work. It reads the moisture sensor level and will make a decision as to whether it should #connect to AWS to check the weather because #the soil is dry or if the moisture level is good, it will not connect to AWS
 
 while (count == 0):
     print("Reading Moisture Level")
     moistureLevel = _map(chan.value, 0, 4095, 0, 100)
     print("Analog Value: ", moistureLevel)
     
-    
+#MoistureLevel is my MQTT topic on AWS, make sure you change it to match your topic on AWS MQTT accordingly    
     if (moistureLevel >= 70):
         myMQTTClient.publish(
             topic = "MoistureLevel", 
@@ -122,7 +122,7 @@ print('Loading function')
 
 def lambda_handler(event, context):
     # Set up OpenWeatherMap API parameters
-    base_url = "YOUR APY LINK"
+    base_url = "YOUR API LINK"
     city_name = "YOUR CITY"
     api_key = "YOUR API KEY"
     i=1
@@ -134,7 +134,9 @@ def lambda_handler(event, context):
     response = requests.get(complete_url)
     print("Connected to Weather API")
 
-#This function is what deals with parsing the data that you get from the API to get the #particular list that displays rain for the next 24 hours. Then it takes that data and will send #that data to the topic WeatherCheck.
+#This function is what deals with parsing the data that you get from the API to get the particular list that displays rain for the next 24 hours. 
+#Then it takes that data and will send it to the topic WeatherCheck.
+#WeatherCheck is my MQTT topic on AWS, make sure you change it to match your topic on AWS MQTT accordingly    
 
     # Extract the JSON data from the response
     data = response.json()
@@ -146,4 +148,5 @@ def lambda_handler(event, context):
             return
     client.publish(topic='WeatherCheck', qos=1, payload=json.dumps({"message":"No"}).encode('utf-8')
     )
+
 
